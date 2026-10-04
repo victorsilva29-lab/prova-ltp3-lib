@@ -2,7 +2,7 @@
 
 # Prova Prática LTP3 — CRUD de Biblioteca (Laravel 9 / MVC)
 
-![PHP](https://img.shields.io/badge/PHP-8.0%2B-777BB4?logo=php&logoColor=white)
+![PHP](https://img.shields.io/badge/PHP-8.2%2B-777BB4?logo=php&logoColor=white)
 ![Laravel](https://img.shields.io/badge/Laravel-9.x-FF2D20?logo=laravel&logoColor=white)
 ![LTP](https://img.shields.io/badge/LTP-3-4B556)
 ![Template](https://img.shields.io/badge/Prova%20Pr%C3%A1tica-0EA5E9)
@@ -80,7 +80,29 @@ A página inicial mostra os cards **Autores** e **Livros** com links para os res
 
 Para executar os testes: `php artisan test`. Os testes usam SQLite em memória (extensão `pdo_sqlite`), sem alterar o banco MySQL configurado no `.env`.
 
-Validação realizada: 8 testes e 81 assertions aprovados, rotas conferidas com `php artisan route:list --except-vendor` e templates compilados com `php artisan view:cache`. As migrations foram executadas nos testes com SQLite. A execução em MySQL ainda precisa ser conferida com o serviço ativo.
+Validação realizada: 8 testes e 81 assertions aprovados, rotas conferidas com `php artisan route:list --except-vendor` e templates compilados com `php artisan view:cache`. As migrations foram executadas tanto nos testes com SQLite quanto no MySQL local, com chave estrangeira. As páginas inicial, de autores e de livros responderam com HTTP 200 no ambiente MySQL.
+
+### Se aparecer erro 500 ao iniciar
+
+Confirme que criou o arquivo `.env` a partir de `.env.example` e executou `php artisan key:generate`. Sem a chave da aplicação, o Laravel não consegue inicializar a criptografia da sessão. Depois execute `php artisan config:clear` e atualize a página.
+
+Se aparecer `Unknown database 'biblioteca'`, ligue o MySQL e crie o banco com o SQL acima antes de executar `php artisan migrate`. Configure usuário e senha no `.env` conforme seu ambiente.
+
+O `.env` contém a chave e as credenciais locais e é ignorado pelo Git. Cada instalação deve gerar sua própria chave; o repositório fornece `.env.example` como modelo.
+
+### PHP portátil no Windows
+
+Caso tenha um PHP 8.3 portátil na pasta `.tools/php`, execute os comandos pelo caminho completo no PowerShell:
+
+```powershell
+Copy-Item .env.example .env # apenas na primeira configuração
+.\.tools\php\php.exe artisan key:generate # apenas na primeira configuração
+.\.tools\php\php.exe artisan config:clear
+.\.tools\php\php.exe artisan migrate
+.\.tools\php\php.exe artisan serve
+```
+
+O PHP portátil e as dependências em `vendor` não são enviados ao GitHub. Em outro computador, instale PHP 8.2+ e execute `composer install` antes dos comandos de preparação.
 
 ---
 
@@ -373,7 +395,7 @@ Crie as quatro views abaixo. Todas devem estender o layout base com `@extends('l
 ## Checklist de entrega
 
 - [x] Models `Autor` e `Livro` com `$fillable` e relacionamentos
-- [ ] Migrations de `autores` e `livros` executadas com chave estrangeira
+- [x] Migrations de `autores` e `livros` executadas com chave estrangeira
 - [x] `AutorController` e `LivroController` com `index`, `create`, `store`, `edit`, `update`, `destroy`
 - [x] Validações com `$request->validate()` em `store` e `update`
 - [x] Rotas `resource` registradas e nomeadas corretamente
