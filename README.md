@@ -39,7 +39,7 @@ A prova é composta por **5 etapas**. Em cada etapa você deve:
 
 ## 0. Preparação do ambiente
 
-**Pré-requisitos:** PHP 8.0+, Composer e MySQL.
+**Pré-requisitos:** PHP 8.2+ (testado com PHP 8.3), Composer e MySQL. Embora o framework aceite PHP 8.0, o `composer.lock` fornecido contém dependências que exigem PHP 8.2 ou superior.
 
 ```bash
 # 1. Instalar as dependências
@@ -69,13 +69,18 @@ DB_USERNAME=root
 DB_PASSWORD=
 ```
 
-6. Suba o servidor e acesse <http://localhost:8000>:
+6. Crie as tabelas e depois suba o servidor em <http://localhost:8000>:
 
 ```bash
+php artisan migrate
 php artisan serve
 ```
 
-A página inicial deve abrir mostrando os cards **Autores** e **Livros** com o aviso de que as rotas ainda não foram criadas.
+A página inicial mostra os cards **Autores** e **Livros** com links para os respectivos CRUDs. Cadastre um autor antes de cadastrar um livro.
+
+Para executar os testes: `php artisan test`. Os testes usam SQLite em memória (extensão `pdo_sqlite`), sem alterar o banco MySQL configurado no `.env`.
+
+Validação realizada: 8 testes e 81 assertions aprovados, rotas conferidas com `php artisan route:list --except-vendor` e templates compilados com `php artisan view:cache`. As migrations foram executadas nos testes com SQLite. A execução em MySQL ainda precisa ser conferida com o serviço ativo.
 
 ---
 
@@ -159,12 +164,14 @@ erDiagram
 > _Resposta:_
 >
 >
+> Execute `php artisan make:model Autor` e `php artisan make:model Livro`. O Artisan cria as classes em `app/Models`; a opção `-m` também gera uma migration.
 
 **Q1.2 — Como funciona uma model? Explique o papel das propriedades `$table` e `$fillable` e dos relacionamentos `hasMany` / `belongsTo`.**
 
 > _Resposta:_
 >
 >
+> A model representa os registros de uma tabela por meio do Eloquent. `$table` define explicitamente a tabela, necessário para usar `autores` em português. `$fillable` permite atribuição em massa apenas aos campos indicados em `create()` e `update()`. `Autor::livros()` usa `hasMany` porque um autor pode ter vários livros; `Livro::autor()` usa `belongsTo` porque cada livro pertence a um autor por `autor_id`.
 
 ---
 
@@ -183,12 +190,14 @@ Confira no MySQL se as tabelas `autores` e `livros` foram criadas.
 > _Resposta:_
 >
 >
+> Execute `php artisan make:migration create_autores_table` e `php artisan make:migration create_livros_table`. Defina as colunas e configure o banco no `.env`; depois execute `php artisan migrate`. O Laravel registra as migrations aplicadas na tabela `migrations`.
 
 **Q2.2 — Como funciona uma migration? Explique os métodos `up()` e `down()`, a importância da ordem de execução e o que faz `foreignId(...)->constrained(...)`.**
 
 > _Resposta:_
 >
 >
+> A migration versiona a estrutura do banco. `up()` cria ou altera a estrutura; `down()` desfaz a alteração no rollback. Os nomes com timestamps determinam a ordem: autores deve existir antes de livros. `foreignId('autor_id')->constrained('autores')` cria uma coluna de chave estrangeira referenciando `autores.id`. `restrictOnDelete()` impede excluir um autor referenciado; o controller também apresenta uma mensagem amigável.
 
 ---
 
@@ -249,18 +258,21 @@ Confira no MySQL se as tabelas `autores` e `livros` foram criadas.
 > _Resposta:_
 >
 >
+> Execute `php artisan make:controller AutorController --resource --model=Autor` e o equivalente para Livro. `--resource` gera os métodos convencionais do CRUD; `--model` associa o recurso à model e gera parâmetros tipados nos métodos correspondentes.
 
 **Q3.2 — Como funciona um controller dentro da arquitetura MVC? Explique a comunicação entre Model, View e Controller e o que é o *Route Model Binding* (ex.: receber `Autor $autor` no método).**
 
 > _Resposta:_
 >
 >
+> O Controller recebe a requisição encaminhada pela rota, valida os dados, consulta ou altera as Models e retorna uma View ou redirecionamento. A View apresenta os dados e formulários; a Model trata a persistência. No Route Model Binding, o Laravel resolve o identificador da URL em uma instância de `Autor` ou `Livro`, retornando 404 quando o registro não existe. O parâmetro `{autor}` deve corresponder a `Autor $autor`.
 
 **Q3.3 — Como funciona o `$request->validate()`? O que acontece quando a validação falha e quando ela passa?**
 
 > _Resposta:_
 >
 >
+> `$request->validate()` verifica os campos pelas regras informadas. Se falhar em uma requisição web, redireciona para a página anterior com os erros e os dados enviados na sessão; em uma requisição que espera JSON, retorna 422 com os erros. Se passar, retorna somente os dados validados, usados em `create()` ou `update()`. Na edição, a regra de ISBN único ignora o próprio livro para permitir manter seu ISBN.
 
 ---
 
@@ -296,12 +308,14 @@ Confira no MySQL se as tabelas `autores` e `livros` foram criadas.
 > _Resposta:_
 >
 >
+> Importe os controllers em `routes/web.php` e registre `Route::resource('autores', AutorController::class)->parameters(['autores' => 'autor'])->except(['show'])` e `Route::resource('livros', LivroController::class)->except(['show'])`. Um resource completo gera: GET `/autores` → index (`autores.index`); GET `/autores/create` → create (`autores.create`); POST `/autores` → store (`autores.store`); GET `/autores/{autor}` → show (`autores.show`); GET `/autores/{autor}/edit` → edit (`autores.edit`); PUT/PATCH `/autores/{autor}` → update (`autores.update`); DELETE `/autores/{autor}` → destroy (`autores.destroy`). Livros segue o mesmo padrão com `{livro}`. Nesta implementação, `show` foi excluída porque não é utilizada.
 
 **Q4.2 — Como funciona o sistema de rotas? Explique o caminho de uma requisição desde a URL até o controller e a utilidade das rotas nomeadas (`route('autores.index')`).**
 
 > _Resposta:_
 >
 >
+> O Laravel combina método HTTP e URI com a rota registrada, executa os middlewares do grupo web, resolve os parâmetros e chama a ação do controller. O controller devolve a resposta. Rotas nomeadas permitem gerar URLs com `route('autores.index')` ou `route('autores.edit', $autor)` sem espalhar endereços fixos pelos templates.
 
 ---
 
@@ -345,25 +359,27 @@ Crie as quatro views abaixo. Todas devem estender o layout base com `@extends('l
 > _Resposta:_
 >
 >
+> Crie arquivos `.blade.php` em `resources/views`, estenda `layouts.app` e defina a seção `content`. Cadastro usa POST para a rota `store`; edição envia POST para `update` com `@method('PUT')`, que gera o campo oculto `_method`, pois formulários HTML não enviam PUT diretamente. `@csrf` gera o token oculto verificado pelo middleware contra falsificação de requisições. A edição preenche os campos com os valores da model e o select com o autor atual.
 
 **Q5.2 — Como funciona a exibição dos erros de validação e a manutenção dos dados digitados? Explique `$errors`, `@error` e `old()`.**
 
 > _Resposta:_
 >
 >
+> `$errors` é a coleção de mensagens disponibilizada às views depois de uma validação malsucedida. `@error('nome')` verifica um erro específico e expõe `$message`. `old('nome')` recupera da sessão o valor enviado anteriormente; `old('nome', $autor->nome)` usa o valor da model como padrão na edição. O select compara `old('autor_id', $livro->autor_id)` com o ID de cada autor para preservar a escolha.
 
 ---
 
 ## Checklist de entrega
 
-- [ ] Models `Autor` e `Livro` com `$fillable` e relacionamentos
+- [x] Models `Autor` e `Livro` com `$fillable` e relacionamentos
 - [ ] Migrations de `autores` e `livros` executadas com chave estrangeira
-- [ ] `AutorController` e `LivroController` com `index`, `create`, `store`, `edit`, `update`, `destroy`
-- [ ] Validações com `$request->validate()` em `store` e `update`
-- [ ] Rotas `resource` registradas e nomeadas corretamente
-- [ ] Views `create` e `edit` de autores e livros
-- [ ] Mensagens de erro e de sucesso exibidas
-- [ ] Todas as questões (Q1.1 a Q5.2) respondidas neste README
+- [x] `AutorController` e `LivroController` com `index`, `create`, `store`, `edit`, `update`, `destroy`
+- [x] Validações com `$request->validate()` em `store` e `update`
+- [x] Rotas `resource` registradas e nomeadas corretamente
+- [x] Views `create` e `edit` de autores e livros
+- [x] Mensagens de erro e de sucesso exibidas
+- [x] Todas as questões (Q1.1 a Q5.2) respondidas neste README
 
 
 ## Licença
